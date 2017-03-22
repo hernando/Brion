@@ -79,14 +79,13 @@ public:
      * @throw std::logic_error if invalid interval
      * @version 2.0
      */
-    BRAIN_API std::future<CompartmentReportFrames> load(double start,
-                                                        double end);
+    BRAIN_API std::future<brion::Frames> load(double start, double end);
 
     /** Load all the frames.
      * This is equivalent to call load(starTime, endTime)
      * @version 2.0
      */
-    BRAIN_API std::future<CompartmentReportFrames> loadAll();
+    BRAIN_API std::future<brion::Frames> loadAll();
 
 private:
     CompartmentReportView(

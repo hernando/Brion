@@ -35,10 +35,14 @@ public:
     ~CompartmentReportCommon() {}
     size_t getNumCompartments(size_t index) const final;
 
+    Frames loadFrames(float start, float end) const;
+
 protected:
     void _cacheNeuronCompartmentCounts(const GIDSet& gids);
     size_t _getFrameNumber(float timestamp) const;
     static GIDSet _computeIntersection(const GIDSet& all, const GIDSet& subset);
+
+    virtual bool _loadFrame(float timestamp, float*) const = 0;
 
 private:
     size_ts _neuronCompartments;

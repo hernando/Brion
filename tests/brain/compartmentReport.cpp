@@ -223,19 +223,19 @@ void testReadRange(const char* relativePath)
     const double step = report.getMetaData().timeStep;
 
     auto frames = view.load(start, start + step).get();
-    BOOST_REQUIRE_EQUAL(frames.size(), 1);
-    BOOST_CHECK_EQUAL(frames[0].getTimestamp(), start);
+    BOOST_REQUIRE_EQUAL(frames.timeStamps->size(), 1);
+    BOOST_CHECK_EQUAL((*frames.timeStamps)[0], start);
 
     frames = view.load(start, start + step * 2).get();
-    BOOST_REQUIRE_EQUAL(frames.size(), 2);
-    BOOST_CHECK_EQUAL(frames[0].getTimestamp(), start);
-    BOOST_CHECK_EQUAL(frames[1].getTimestamp(), start + step);
+    BOOST_REQUIRE_EQUAL(frames.timeStamps->size(), 2);
+    BOOST_CHECK_EQUAL((*frames.timeStamps)[0], start);
+    BOOST_CHECK_EQUAL((*frames.timeStamps)[1], start + step);
 
     frames = view.load(start + 0.5 * step, start + step * 2.5).get();
-    BOOST_REQUIRE_EQUAL(frames.size(), 3);
-    BOOST_CHECK_EQUAL(frames[0].getTimestamp(), start);
-    BOOST_CHECK_EQUAL(frames[1].getTimestamp(), start + step);
-    BOOST_CHECK_EQUAL(frames[1].getTimestamp(), start + 2 * step);
+    BOOST_REQUIRE_EQUAL(frames.timeStamps->size(), 3);
+    BOOST_CHECK_EQUAL((*frames.timeStamps)[0], start);
+    BOOST_CHECK_EQUAL((*frames.timeStamps)[1], start + step);
+    BOOST_CHECK_EQUAL((*frames.timeStamps)[2], start + 2 * step);
 }
 
 BOOST_AUTO_TEST_CASE(read_binary)
@@ -269,10 +269,10 @@ void testReadAll(const char* relativePath)
 
     auto frames = view.loadAll().get();
 
-    BOOST_CHECK_EQUAL(frames.size(), 100);
+    BOOST_CHECK(frames.timeStamps);
+    BOOST_CHECK(frames.data);
 
-    for (auto& frame : frames)
-        BOOST_VERIFY(!frame.empty());
+    BOOST_CHECK_EQUAL(frames.timeStamps->size(), 100);
 }
 
 BOOST_AUTO_TEST_CASE(read_all_binary)

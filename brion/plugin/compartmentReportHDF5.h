@@ -50,6 +50,8 @@ public:
     size_t getFrameSize() const final;
 
     floatsPtr loadFrame(float timestamp) const final;
+    Frames loadFrames(float start, float end) const final;
+
     void updateMapping(const GIDSet& gids) final;
 
     void writeHeader(float startTime, float endTime, float timestep,
@@ -58,6 +60,9 @@ public:
     bool writeFrame(uint32_t gid, const float* values, size_t size,
                     float timestamp) final;
     bool flush() final;
+
+protected:
+    bool _loadFrame(float timestamp, float*) const final;
 
 private:
     void _openFile(const uint32_t cellID);
