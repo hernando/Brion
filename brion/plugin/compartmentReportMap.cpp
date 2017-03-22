@@ -380,17 +380,15 @@ void CompartmentReportMap::updateMapping(const GIDSet& gids)
         LBTHROW(std::runtime_error("Incomplete data source"));
 }
 
-floatsPtr CompartmentReportMap::loadFrame(const float time) const
+bool CompartmentReportMap::_loadFrame(const float timestamp,
+                                      float* buffer) const
 {
-    if (!_readable)
-        return floatsPtr();
-
     OffsetMap offsetMap;
     size_t offset = 0;
 
     Strings keys;
     keys.reserve(_gids.size());
-    const size_t index = _getFrameNumber(time);
+    const size_t index = _getFrameNumber(timestamp);
 
     for (const uint32_t gid : _gids)
     {
@@ -400,15 +398,32 @@ floatsPtr CompartmentReportMap::loadFrame(const float time) const
         if (i == _cellCounts.end())
         {
             LBWARN << "Missing mapping for gid " << gid << std::endl;
-            return floatsPtr();
+            return false;
         }
         const size_t size =
             std::accumulate(i->second.begin(), i->second.end(), 0);
         offset += size;
     }
 
+    return _load(buffer, keys, offsetMap);
+}
+
+Frames CompartmentReportMap::loadFrames(const float start,
+                                        const float end) const
+{
+    if (!_readable)
+        return Frames();
+    return CompartmentReportCommon::loadFrames(start, end);
+}
+
+floatsPtr CompartmentReportMap::loadFrame(const float time) const
+{
+    if (!_readable)
+        return floatsPtr();
+
     floatsPtr buffer(new floats(getFrameSize()));
-    if (_load(buffer, keys, offsetMap))
+
+    if (_loadFrame(time, buffer->data()))
         return buffer;
     return floatsPtr();
 }
@@ -435,16 +450,14 @@ floatsPtr CompartmentReportMap::loadNeuron(const uint32_t gid) const
         offsetMap.emplace(keys.back(), i * nCompartments);
     }
 
-    if (_load(buffer, keys, offsetMap))
+    if (_load(buffer->data(), keys, offsetMap))
         return buffer;
     return floatsPtr();
 }
 
-bool CompartmentReportMap::_load(floatsPtr buffer, const Strings& keys,
+bool CompartmentReportMap::_load(float* buffer, const Strings& keys,
                                  const OffsetMap& offsets) const
 {
-    float* const ptr = buffer->data();
-
 #ifdef BRION_USE_OPENMP
     lunchbox::a_ssize_t taken;
     omp_set_num_threads(_stores.size());
@@ -465,13 +478,13 @@ bool CompartmentReportMap::_load(floatsPtr buffer, const Strings& keys,
         const Strings& subKeys = keys;
 #endif
 
-        const auto takeValue = [ptr, &offsets, &taken](const std::string& key,
-                                                       char* data,
-                                                       const size_t size) {
+        const auto takeValue = [buffer, &offsets,
+                                &taken](const std::string& key, char* data,
+                                        const size_t size) {
             const auto i = offsets.find(key);
             if (i != offsets.end())
             {
-                ::memcpy(ptr + i->second, data, size);
+                ::memcpy(buffer + i->second, data, size);
                 ++taken;
             }
             std::free(data);

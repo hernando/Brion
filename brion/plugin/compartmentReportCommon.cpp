@@ -76,5 +76,40 @@ GIDSet CompartmentReportCommon::_computeIntersection(const GIDSet& all,
     }
     return intersection;
 }
+
+Frames CompartmentReportCommon::loadFrames(float start, float end) const
+{
+    Frames frames;
+
+    start = std::max(start, getStartTime());
+    end = std::min(end, getEndTime());
+
+    if (end <= start)
+        return frames;
+
+    const float timestep = getTimestep();
+
+    frames.timeStamps.reset(new floats);
+
+    for (size_t i = std::floor(start / timestep); i * timestep < end; ++i)
+    {
+        frames.timeStamps->push_back(i * timestep);
+    }
+
+    const size_t frameSize = getFrameSize();
+
+    frames.data.reset(new floats(frameSize * frames.timeStamps->size()));
+
+    float* buffer = frames.data->data();
+    size_t index = 0;
+
+    for (float timestamp : *frames.timeStamps)
+    {
+        if (!_loadFrame(timestamp, buffer + frameSize * index++))
+            return Frames();
+    }
+
+    return frames;
+}
 }
 }

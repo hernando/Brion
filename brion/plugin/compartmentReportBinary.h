@@ -74,6 +74,7 @@ public:
 
     floatsPtr loadFrame(float timestamp) const final;
     floatsPtr loadNeuron(const uint32_t gid) const final;
+
     void updateMapping(const GIDSet& gids) final;
 
     void writeHeader(float startTime, float endTime, float timestep,
@@ -83,10 +84,16 @@ public:
                     float timestamp) final;
     bool flush() final;
 
+protected:
+    bool _loadFrame(float timestamp, float*) const final;
+
 private:
     bool _parseHeader();
 
     bool _parseMapping();
+
+    bool _loadFrameMemMap(float timestamp, float*) const;
+    bool _loadFrameAIO(float timestamp, float*) const;
 
     double _startTime;
     double _endTime;
@@ -98,6 +105,7 @@ private:
 
     const std::string _path;
     lunchbox::MemoryMap _file;
+    int _fileDescriptor;
 
     HeaderInfo _header;
 
