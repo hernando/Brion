@@ -25,7 +25,7 @@
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/filesystem/operations.hpp>
 #include <boost/filesystem/path.hpp>
-#include <boost/foreach.hpp>
+
 #include <boost/test/unit_test.hpp>
 #include <lunchbox/log.h>
 #include <servus/uint128_t.h>
@@ -282,43 +282,43 @@ bool convert(const brion::URI& fromURI, const brion::URI& toURI)
         BOOST_CHECK_EQUAL(gids.size(), counts.size());
 
         size_t i = 0;
-        BOOST_FOREACH (const uint32_t gid, gids)
+        for (const uint32_t gid : gids)
         {
             BOOST_CHECK(!counts[i].empty());
             BOOST_CHECK(to.writeCompartments(gid, counts[i++]));
         }
 
-        for (float t = start; t < end; t += step)
+        for (int n = 0; start + n * step < end; ++n)
         {
-            brion::floatsPtr data = from.loadFrame(t).get();
+            const float time = start + n * step;
+            brion::floatsPtr data = from.loadFrame(time).get();
             BOOST_CHECK(data);
             if (!data)
                 return false;
 
-            const brion::floats& voltages = *data.get();
+            const brion::floats& values = *data.get();
             const brion::SectionOffsets& offsets = from.getOffsets();
             BOOST_CHECK_EQUAL(offsets.size(), gids.size());
 
             i = 0;
             for (const uint32_t gid : gids)
             {
-                brion::floats cellVoltages;
-                cellVoltages.reserve(from.getNumCompartments(i));
+                brion::floats cellValues;
+                cellValues.reserve(from.getNumCompartments(i));
 
                 for (size_t j = 0; j < offsets[i].size(); ++j)
                     for (size_t k = 0; k < counts[i][j]; ++k)
-                        cellVoltages.push_back(voltages[offsets[i][j] + k]);
+                        cellValues.push_back(values[offsets[i][j] + k]);
 
-                BOOST_CHECK_EQUAL(cellVoltages.size(),
+                BOOST_CHECK_EQUAL(cellValues.size(),
                                   from.getNumCompartments(i));
-                BOOST_CHECK(!cellVoltages.empty());
-                BOOST_CHECK(to.writeFrame(gid, cellVoltages, t));
+                BOOST_CHECK(!cellValues.empty());
+                BOOST_CHECK(to.writeFrame(gid, cellValues, time));
                 ++i;
             }
         }
         std::cout << (bp::microsec_clock::local_time() - startTime)
-                         .total_milliseconds()
-                  << " ms" << std::endl;
+                         .total_milliseconds() << " ms" << std::endl;
         return true;
     }
     catch (const std::runtime_error& e)
@@ -352,7 +352,6 @@ void testPerf(const brion::URI& uri)
               << readTime.total_milliseconds() << " ms" << std::endl;
 }
 
-////
 void testReadSoma(const char* relativePath)
 {
     boost::filesystem::path path(BBP_TESTDATA);
@@ -387,7 +386,6 @@ BOOST_AUTO_TEST_CASE(test_read_soma_hdf5)
     testReadSoma("local/simulations/may17_2011/Control/voltage.h5");
 }
 
-/////
 void testReadAllCompartments(const char* relativePath)
 {
     boost::filesystem::path path(BBP_TESTDATA);
@@ -437,7 +435,6 @@ BOOST_AUTO_TEST_CASE(test_read_allcomps_hdf5)
         "local/simulations/may17_2011/Control/allCompartments.h5");
 }
 
-////
 void testReadSubtarget(const char* relativePath)
 {
     boost::filesystem::path path(BBP_TESTDATA);
@@ -484,7 +481,6 @@ BOOST_AUTO_TEST_CASE(test_read_subtarget_hdf5)
         "local/simulations/may17_2011/Control/allCompartments.h5");
 }
 
-/////
 void testReadFrames(const char* relativePath)
 {
     boost::filesystem::path path(BBP_TESTDATA);
@@ -539,7 +535,6 @@ BOOST_AUTO_TEST_CASE(test_read_frames_hdf5)
     testReadFrames("local/simulations/may17_2011/Control/allCompartments.h5");
 }
 
-//////
 BOOST_AUTO_TEST_CASE(test_perf_binary)
 {
     boost::filesystem::path path(BBP_TESTDATA);

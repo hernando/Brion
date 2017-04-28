@@ -240,13 +240,13 @@ size_t CompartmentReportHDF5::getFrameSize() const
     return _comps;
 }
 
-bool CompartmentReportHDF5::_loadFrame(const float timestamp,
+bool CompartmentReportHDF5::_loadFrame(const size_t frameNumber,
                                        float* buffer) const
 {
+    lunchbox::ScopedWrite mutex(detail::_hdf5Lock);
+
     // The offset for the first comparment of the cell being processed
     hsize_t firstCompartmentOffset = 0;
-
-    const size_t frameNumber = _getFrameNumber(timestamp);
 
     for (GIDSetCIter cellID = _gids.begin(); cellID != _gids.end(); ++cellID)
     {
@@ -270,27 +270,6 @@ bool CompartmentReportHDF5::_loadFrame(const float timestamp,
         firstCompartmentOffset += sourceSizes[1];
     }
     return true;
-}
-
-Frames CompartmentReportHDF5::loadFrames(const float start,
-                                         const float end) const
-{
-    if (_offsets.empty())
-        return Frames();
-    lunchbox::ScopedWrite mutex(detail::_hdf5Lock);
-    return CompartmentReportCommon::loadFrames(start, end);
-}
-
-floatsPtr CompartmentReportHDF5::loadFrame(const float timestamp) const
-{
-    if (_offsets.empty())
-        return floatsPtr();
-
-    lunchbox::ScopedWrite mutex(detail::_hdf5Lock);
-
-    floatsPtr buffer(new floats(getFrameSize()));
-    _loadFrame(timestamp, buffer->data());
-    return buffer;
 }
 
 void CompartmentReportHDF5::updateMapping(const GIDSet& gids)

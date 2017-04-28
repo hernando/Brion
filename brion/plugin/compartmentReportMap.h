@@ -64,9 +64,6 @@ public:
         return _counts;
     }
 
-    floatsPtr loadFrame(float timestamp) const final;
-    Frames loadFrames(float start, float end) const final;
-
     floatsPtr loadNeuron(uint32_t gid) const final;
 
     void updateMapping(const GIDSet& gids) final;
@@ -89,9 +86,6 @@ public:
         float endTime;
         float timestep;
     };
-
-protected:
-    bool _loadFrame(float timestamp, float*) const final;
 
 private:
     std::vector<keyv::Map> _stores;
@@ -131,6 +125,7 @@ private:
     bool _flushHeader();
     bool _load(float* buffer, const Strings& keys,
                const OffsetMap& offsets) const;
+    bool _loadFrame(size_t frameNumber, float* buffer) const final;
 
     std::string _getHeaderKey() const { return "header"; }
     std::string _getGidsKey() const { return "gids"; }

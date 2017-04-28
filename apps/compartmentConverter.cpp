@@ -65,28 +65,6 @@ void requireEqualCollections(const T& a, const T& b)
     REQUIRE_EQUAL(i, a.end());
     REQUIRE_EQUAL(j, b.end());
 }
-
-/** @return true if the cell occupies a continuous region in the report frame */
-bool _isCompact(const brion::CompartmentReport& report, const size_t gidIndex)
-{
-    const auto& offsets = report.getOffsets()[gidIndex];
-    const auto& counts = report.getCompartmentCounts()[gidIndex];
-
-    // sections are not guaranteed to be enumerated in order - sort them:
-    std::map<uint64_t, uint16_t> mapping;
-    for (size_t i = 0; i < offsets.size(); ++i)
-        mapping.emplace(offsets[i], counts[i]);
-
-    auto i = mapping.begin();
-    uint64_t next = i->first + i->second;
-    for (++i; i != mapping.end(); ++i)
-    {
-        if (i->first != next)
-            return false;
-        next = i->first + i->second;
-    }
-    return true;
-}
 }
 
 /**
@@ -237,12 +215,6 @@ int main(const int argc, char** argv)
 
     boost::progress_display progress(nFrames);
 
-    std::vector<bool> isCompact(gids.size());
-    for (size_t i = 0; i < gids.size(); ++i)
-    {
-        isCompact[i] = _isCompact(in, i);
-    }
-
     for (size_t frameIndex = 0; frameIndex < nFrames; ++frameIndex)
     {
         const float t = start + frameIndex * step;
@@ -275,30 +247,13 @@ int main(const int argc, char** argv)
         clock.reset();
         for (const uint32_t gid : gids)
         {
-            if (isCompact[index])
-            {
-                const float* cellValues = &values[offsets[index][0]];
-                const size_t size = std::accumulate(counts[index].begin(),
-                                                    counts[index].end(), 0);
-                if (!to.writeFrame(gid, cellValues, size, t))
-                    return EXIT_FAILURE;
-                ++index;
-                continue;
-            }
-
-            brion::floats cellvalues;
-            cellvalues.reserve(in.getNumCompartments(index));
-
-            for (size_t j = 0; j < offsets[index].size(); ++j)
-            {
-                const auto offset = offsets[index][j];
-                for (size_t k = 0; k < counts[index][j]; ++k)
-                    cellvalues.emplace_back(values[offset + k]);
-            }
-
-            if (!to.writeFrame(gid, cellvalues, t))
+            const float* cellValues = &values[offsets[index][0]];
+            const size_t size =
+                std::accumulate(counts[index].begin(), counts[index].end(), 0);
+            if (!to.writeFrame(gid, cellValues, size, t))
                 return EXIT_FAILURE;
             ++index;
+            continue;
         }
         writeTime += clock.getTimef();
         ++progress;
