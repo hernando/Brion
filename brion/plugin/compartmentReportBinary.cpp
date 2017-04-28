@@ -35,6 +35,34 @@
 #endif
 
 #ifdef HAS_AIO
+#ifdef __linux__
+// Linux AIO headers and syscall wrappers
+#include <errno.h>
+#include <linux/aio_abi.h>
+#include <string.h>
+#include <sys/syscall.h>
+int io_setup(unsigned nr, aio_context_t* ctxp)
+{
+    return syscall(__NR_io_setup, nr, ctxp);
+}
+int io_destroy(aio_context_t ctx)
+{
+    return syscall(__NR_io_destroy, ctx);
+}
+int io_submit(aio_context_t ctx, long nr, struct iocb** iocbpp)
+{
+    return syscall(__NR_io_submit, ctx, nr, iocbpp);
+}
+int io_getevents(aio_context_t ctx, long min_nr, long max_nr,
+                 struct io_event* events, struct timespec* timeout)
+{
+    return syscall(__NR_io_getevents, ctx, min_nr, max_nr, events, timeout);
+}
+int io_cancel(aio_context_t ctx, struct iocb* iocb, struct io_event* result)
+{
+    return syscall(__NR_io_cancel, ctx, iocb, result);
+}
+#endif
 #include <aio.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -129,10 +157,6 @@ const T* getPtr(const uint8_t* buffer, const size_t offset)
     return reinterpret_cast<const T*>(buffer + offset);
 }
 
-#ifdef HAS_AIO
-
-const size_t _maxAIOops = 4096;
-
 std::string getErrorString(int errnum)
 {
     char buffer[1024];
@@ -141,6 +165,10 @@ std::string getErrorString(int errnum)
     return buffer;
 }
 
+#ifdef HAS_AIO
+
+const size_t _maxAIOops = 4096;
+
 struct AIOReadData
 {
     int fileDescriptor;
@@ -148,6 +176,100 @@ struct AIOReadData
     size_t size;
     size_t offset;
 };
+
+#if __linux__
+
+// Linux AIO helpers
+
+class AIOContext
+{
+public:
+    size_t maxOps;
+
+    AIOContext()
+    {
+        bzero(&_context, sizeof(_context));
+        maxOps = _maxAIOops;
+        while (io_setup(_maxAIOops, &_context) == -1)
+        {
+            switch (errno)
+            {
+            case EAGAIN:
+                maxOps /= 2;
+                break;
+            case ENOSYS:
+                throw std::runtime_error("Kernel AIO not implemented");
+            default:
+                throw std::runtime_error(
+                    "Could not setup async IO operation: " +
+                    getErrorString(errno));
+            }
+        }
+    }
+
+    ~AIOContext() { io_destroy(_context); }
+    operator const aio_context_t&() const { return _context; }
+private:
+    aio_context_t _context;
+};
+
+size_t _setupContext(AIOContext& context)
+{
+    return context.maxOps;
+}
+
+void _initAIOControlBlock(iocb& block, const AIOReadData& readData)
+{
+    bzero(&block, sizeof(iocb));
+    block.aio_buf = (uint64_t)readData.buffer;
+    block.aio_fildes = readData.fileDescriptor;
+    block.aio_nbytes = readData.size;
+    block.aio_offset = readData.offset;
+    block.aio_lio_opcode = IOCB_CMD_PREAD;
+}
+
+void _readAsync(iocb** operations, const size_t length,
+                const aio_context_t& context)
+{
+    int ret = io_submit(context, length, operations);
+    if (ret != (int)length)
+    {
+        throw std::runtime_error("Could not submit async IO operation: " +
+                                 getErrorString(errno));
+    }
+    std::vector<io_event> events(length);
+    size_t remaining = length;
+    while (remaining != 0)
+    {
+        ret = io_getevents(context, length, length, events.data(), nullptr);
+        // Only retry if the reason for ret being < length is an interruption
+        if (ret != (int)remaining && errno != EINTR)
+        {
+            // Cancelling all operations submitted. Some of these calls may
+            // fail, but we don't care because we are already going to throw
+            // Cancelling only those operations that haven't completed is
+            // complicated because they are not executed in order.
+            for (size_t i = 0; i != length; ++i)
+                io_cancel(context, operations[i], &events[0]);
+            throw std::runtime_error("Error in AIO operation: " +
+                                     getErrorString(errno));
+        }
+        remaining -= ret;
+        for (int i = 0; i < ret; ++i)
+        {
+            const iocb* cb = (iocb*)events[i].obj;
+            if ((int)cb->aio_nbytes != events[i].res)
+                throw std::runtime_error("AIO read failed");
+        }
+    }
+}
+#endif
+
+// POSIX AIO helpers
+size_t _setupContext(void*&)
+{
+    return _maxAIOops;
+}
 
 void _initAIOControlBlock(aiocb& block, const AIOReadData& readData)
 {
@@ -159,7 +281,7 @@ void _initAIOControlBlock(aiocb& block, const AIOReadData& readData)
     block.aio_lio_opcode = LIO_READ;
 }
 
-void _readAsync(aiocb** operations, size_t length)
+void _readAsync(aiocb** operations, size_t length, void*)
 {
     if (lio_listio(LIO_WAIT, operations, length, nullptr) == -1)
         throw std::runtime_error("Error in AIO operation setup" +
@@ -172,10 +294,16 @@ void _readAsync(aiocb** operations, size_t length)
     }
 }
 
+// For linux AIO: ControlBlock = iocb, Context = AIOContext
+// For POSIX AIO: ControlBlock = aiocb, Context = void* (no context needed)
+template <typename ControlBlock, typename Context = void*>
 void _readAsync(const std::vector<AIOReadData>& readData)
 {
-    std::vector<aiocb> controlBlocks(readData.size());
-    std::vector<aiocb*> pointers(readData.size());
+    Context context;
+    const size_t maxOps = _setupContext(context);
+
+    std::vector<ControlBlock> controlBlocks(readData.size());
+    std::vector<ControlBlock*> pointers(readData.size());
     size_t i = 0;
     for (auto& opData : readData)
     {
@@ -188,13 +316,22 @@ void _readAsync(const std::vector<AIOReadData>& readData)
     size_t remaining = readData.size();
     while (remaining)
     {
-        const size_t batchSize = std::min(remaining, _maxAIOops);
-        _readAsync(operations, batchSize);
+        const size_t batchSize = std::min(remaining, maxOps);
+        _readAsync(operations, batchSize, context);
         remaining -= batchSize;
         operations += batchSize;
     }
 }
 
+void _readAsync(const std::vector<AIOReadData>& readData, bool usePosixAIO)
+{
+#ifdef __linux__
+    if (!usePosixAIO)
+        _readAsync<iocb, AIOContext>(readData);
+    else
+#endif
+        _readAsync<aiocb>(readData);
+}
 #else
 // If AIO is not available always use memory mapped files
 const bool _useMemoryMap = true;
@@ -233,7 +370,11 @@ CompartmentReportBinary::CompartmentReportBinary(
     , _subNumCompartments(0)
     , _subtarget(false)
 #ifdef HAS_AIO
+#if __linux__
+    , _ioAPI(IOapi::linux_aio)
+#else
     , _ioAPI(IOapi::posix_aio)
+#endif
 #else
     , _ioAPI(IOapi::mmap)
 #endif
@@ -241,6 +382,10 @@ CompartmentReportBinary::CompartmentReportBinary(
 #ifdef HAS_AIO
     if (getenv("BRION_USE_MEM_MAP") != nullptr)
         _ioAPI = IOapi::mmap;
+#if __linux__
+    else if (getenv("BRION_USE_POSIX_AIO") != nullptr)
+        _ioAPI = IOapi::posix_aio;
+#endif
 #endif
 
     if (initData.getAccessMode() != MODE_READ)
@@ -250,6 +395,8 @@ CompartmentReportBinary::CompartmentReportBinary(
 
 #ifdef HAS_AIO
     int flags = O_RDONLY;
+    if (_ioAPI == IOapi::linux_aio)
+        flags |= O_DIRECT;
     _fileDescriptor = open(initData.getURI().getPath().c_str(), flags);
     if (_fileDescriptor < 0)
         throw std::runtime_error("Failed to open " +
@@ -434,7 +581,7 @@ void CompartmentReportBinary::_loadFramesAIO(const size_t frameNumber,
     const size_t readCount =
         (_subtarget ? _subNumCompartments : _header.numCompartments) * count;
 
-    _readAsync(readData);
+    _readAsync(readData, _ioAPI == IOapi::posix_aio);
 
     if (_header.byteswap)
     {

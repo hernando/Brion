@@ -124,6 +124,7 @@ private:
     {
         mmap,
         posix_aio,
+        linux_aio
     } _ioAPI;
 };
 }

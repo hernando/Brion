@@ -52,12 +52,10 @@ size_t CompartmentReportCommon::_getFrameNumber(double timestamp) const
     const auto endTime = getEndTime();
     assert(endTime > startTime);
     const auto step = getTimestep();
-
     timestamp =
         std::max(std::min(timestamp, std::nextafter(endTime, -INFINITY)),
                  startTime) -
         startTime;
-
     return size_t(timestamp / step);
 }
 
