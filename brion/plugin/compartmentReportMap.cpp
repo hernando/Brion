@@ -380,19 +380,21 @@ void CompartmentReportMap::updateMapping(const GIDSet& gids)
         LBTHROW(std::runtime_error("Incomplete data source"));
 }
 
-bool CompartmentReportMap::_loadFrame(const float timestamp,
+bool CompartmentReportMap::_loadFrame(const size_t frameNumber,
                                       float* buffer) const
 {
+    if (!_readable)
+        return false;
+
     OffsetMap offsetMap;
     size_t offset = 0;
 
     Strings keys;
     keys.reserve(_gids.size());
-    const size_t index = _getFrameNumber(timestamp);
 
     for (const uint32_t gid : _gids)
     {
-        keys.push_back(_getValueKey(gid, index));
+        keys.push_back(_getValueKey(gid, frameNumber));
         offsetMap.emplace(keys.back(), offset);
         const CellCompartments::const_iterator i = _cellCounts.find(gid);
         if (i == _cellCounts.end())
@@ -406,26 +408,6 @@ bool CompartmentReportMap::_loadFrame(const float timestamp,
     }
 
     return _load(buffer, keys, offsetMap);
-}
-
-Frames CompartmentReportMap::loadFrames(const float start,
-                                        const float end) const
-{
-    if (!_readable)
-        return Frames();
-    return CompartmentReportCommon::loadFrames(start, end);
-}
-
-floatsPtr CompartmentReportMap::loadFrame(const float time) const
-{
-    if (!_readable)
-        return floatsPtr();
-
-    floatsPtr buffer(new floats(getFrameSize()));
-
-    if (_loadFrame(time, buffer->data()))
-        return buffer;
-    return floatsPtr();
 }
 
 floatsPtr CompartmentReportMap::loadNeuron(const uint32_t gid) const

@@ -57,8 +57,6 @@ public:
         return _counts;
     }
 
-    floatsPtr loadFrame(float) const final;
-
     void updateMapping(const GIDSet&) final;
     void writeHeader(float, float, float, const std::string&,
                      const std::string&) final
@@ -70,15 +68,14 @@ public:
         return true;
     }
     bool flush() final { return true; }
-protected:
-    bool _loadFrame(float timestamp, float*) const final;
-
 private:
     brion::GIDSet _gids;
     SectionOffsets _offsets;
     CompartmentCounts _counts;
     size_t _defaultGIDs;
     const bool _randomValues;
+
+    bool _loadFrame(size_t frameNumber, float*) const final;
 };
 }
 }

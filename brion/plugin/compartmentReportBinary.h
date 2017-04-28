@@ -72,7 +72,6 @@ public:
     const CompartmentCounts& getCompartmentCounts() const final;
     size_t getFrameSize() const final;
 
-    floatsPtr loadFrame(float timestamp) const final;
     floatsPtr loadNeuron(const uint32_t gid) const final;
 
     void updateMapping(const GIDSet& gids) final;
@@ -84,16 +83,17 @@ public:
                     float timestamp) final;
     bool flush() final;
 
-protected:
-    bool _loadFrame(float timestamp, float*) const final;
-
 private:
     bool _parseHeader();
 
     bool _parseMapping();
 
-    bool _loadFrameMemMap(float timestamp, float*) const;
-    bool _loadFrameAIO(float timestamp, float*) const;
+    bool _loadFrame(size_t frameNumber, float* buffer) const final;
+    bool _loadFrames(size_t startFrame, size_t count,
+                     float* buffer) const final;
+
+    bool _loadFrameMemMap(size_t frameNumber, float* buffer) const;
+    void _loadFramesAIO(size_t frameNumber, size_t count, float* buffer) const;
 
     double _startTime;
     double _endTime;
@@ -109,15 +109,22 @@ private:
 
     HeaderInfo _header;
 
-    SectionOffsets _offsets[2];
-    CompartmentCounts _counts[2];
-
-    SectionOffsets _conversionOffsets;
+    SectionOffsets _perSectionOffsets[2];
+    CompartmentCounts _perSectionCounts[2];
+    std::vector<size_t> _perCellOffsets[2];
+    std::vector<uint16_t> _perCellCounts;
+    std::vector<uint32_t> _subOriginalIndices;
 
     size_t _subNumCompartments;
 
     GIDSet _originalGIDs;
     bool _subtarget;
+
+    enum class IOapi
+    {
+        mmap,
+        posix_aio,
+    } _ioAPI;
 };
 }
 }

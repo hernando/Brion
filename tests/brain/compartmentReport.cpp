@@ -75,7 +75,6 @@ BOOST_AUTO_TEST_CASE(invalid_mapping)
     BOOST_CHECK_THROW(reader.createView(gids), std::runtime_error);
 }
 
-//////////////
 void testBounds(const char* relativePath)
 {
     boost::filesystem::path path(BBP_TESTDATA);
@@ -106,7 +105,6 @@ BOOST_AUTO_TEST_CASE(bounds_hdf5)
     testBounds("local/simulations/may17_2011/Control/voltage.h5");
 }
 
-//////////////
 inline void testReadSoma(const char* relativePath)
 {
     boost::filesystem::path path(BBP_TESTDATA);
@@ -141,7 +139,6 @@ BOOST_AUTO_TEST_CASE(read_soma_hdf5)
     testReadSoma("local/simulations/may17_2011/Control/voltage.h5");
 }
 
-//////////////
 inline void testReadAllComps(const char* relativePath)
 {
     boost::filesystem::path path(BBP_TESTDATA);
@@ -171,7 +168,6 @@ BOOST_AUTO_TEST_CASE(read_allcomps_hdf5)
     testReadAllComps("local/simulations/may17_2011/Control/allCompartments.h5");
 }
 
-//////////////
 void testRead(const char* relativePath)
 {
     boost::filesystem::path path(BBP_TESTDATA);
@@ -247,7 +243,7 @@ BOOST_AUTO_TEST_CASE(read_hdf5)
 {
     testRead("local/simulations/may17_2011/Control/allCompartments.h5");
 }
-//////////////
+
 void testReadAll(const char* relativePath)
 {
     boost::filesystem::path path(BBP_TESTDATA);
@@ -285,7 +281,6 @@ BOOST_AUTO_TEST_CASE(read_all_hdf5)
     testReadAll("local/simulations/may17_2011/Control/allCompartments.h5");
 }
 
-//////////////
 void testIndices(const char* relativePath)
 {
     boost::filesystem::path path(BBP_TESTDATA);
