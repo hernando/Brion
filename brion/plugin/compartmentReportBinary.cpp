@@ -129,6 +129,10 @@ const T* getPtr(const uint8_t* buffer, const size_t offset)
     return reinterpret_cast<const T*>(buffer + offset);
 }
 
+#ifdef HAS_AIO
+
+const size_t _maxAIOops = 4096;
+
 std::string getErrorString(int errnum)
 {
     char buffer[1024];
@@ -136,10 +140,6 @@ std::string getErrorString(int errnum)
     strerror_r(errnum, buffer, 1023);
     return buffer;
 }
-
-#ifdef HAS_AIO
-
-const size_t _maxAIOops = 4096;
 
 struct AIOReadData
 {
@@ -159,7 +159,7 @@ void _initAIOControlBlock(aiocb& block, const AIOReadData& readData)
     block.aio_lio_opcode = LIO_READ;
 }
 
-void _readAsync(aiocb** operations, size_t length, void*)
+void _readAsync(aiocb** operations, size_t length)
 {
     if (lio_listio(LIO_WAIT, operations, length, nullptr) == -1)
         throw std::runtime_error("Error in AIO operation setup" +
@@ -189,16 +189,12 @@ void _readAsync(const std::vector<AIOReadData>& readData)
     while (remaining)
     {
         const size_t batchSize = std::min(remaining, _maxAIOops);
-        _readAsync(operations, batchSize, context);
+        _readAsync(operations, batchSize);
         remaining -= batchSize;
         operations += batchSize;
     }
 }
 
-void _readAsync(const std::vector<AIOReadData>& readData, bool usePosixAIO)
-{
-    _readAsync<aiocb>(readData);
-}
 #else
 // If AIO is not available always use memory mapped files
 const bool _useMemoryMap = true;
@@ -438,7 +434,7 @@ void CompartmentReportBinary::_loadFramesAIO(const size_t frameNumber,
     const size_t readCount =
         (_subtarget ? _subNumCompartments : _header.numCompartments) * count;
 
-    _readAsync(readData, _ioAPI == IOapi::posix_aio);
+    _readAsync(readData);
 
     if (_header.byteswap)
     {
@@ -446,11 +442,13 @@ void CompartmentReportBinary::_loadFramesAIO(const size_t frameNumber,
         for (size_t i = 0; i < readCount; ++i)
             lunchbox::byteswap(buffer[i]);
     }
+}
 #else
 void CompartmentReportBinary::_loadFramesAIO(const size_t, const size_t,
                                              float*) const
-#endif
+{
 }
+#endif
 
 floatsPtr CompartmentReportBinary::loadNeuron(const uint32_t gid) const
 {
